@@ -296,3 +296,229 @@ graf_bar_pressure <- match_data %>%
 
 print(graf_bar_pressure)
 
+############################################################
+### 09. ANOVA DE VARIABLES TÁCTICAS DEL EQUIPO ###
+############################################################
+
+anova_pressure <- aov(diff_pressure ~ result, data = match_data)
+anova_speed <- aov(diff_speed ~ result, data = match_data)
+
+print(summary(anova_pressure))
+print(summary(anova_speed))
+
+
+############################################################
+### 10. CORRELACIONES INICIALES ###
+############################################################
+
+corr_data <- match_data %>%
+  select(
+    goal_difference,
+    home_win_binary,
+    diff_speed,
+    diff_pressure,
+    diff_aggression,
+    diff_chance_passing,
+    home_team_goal,
+    away_team_goal
+  ) %>%
+  na.omit()
+
+cor_matrix <- cor(corr_data, use = "complete.obs")
+print(round(cor_matrix, 2))
+
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  tl.col = "black"
+)
+
+
+############################################################
+### 11. MODELO DE REGRESIÓN LINEAL BASE ###
+############################################################
+
+# Para conectar mejor con la pregunta de investigación, usamos home_win_binary.
+# Esta variable vale 1 cuando gana el equipo local y 0 cuando no gana.
+# El modelo se puede interpretar como una aproximación simple a probabilidad de victoria.
+
+model1 <- lm(
+  home_win_binary ~ diff_pressure + diff_aggression + diff_speed,
+  data = match_data
+)
+
+print(summary(model1))
+
+
+############################################################
+### 12. RANDOM FOREST INICIAL PARA CLASIFICAR VICTORIA LOCAL ###
+############################################################
+
+rf_data <- match_data %>%
+  select(
+    home_win_factor,
+    diff_pressure,
+    diff_aggression,
+    diff_speed
+  ) %>%
+  na.omit()
+
+set.seed(123)
+
+rf_model <- randomForest(
+  home_win_factor ~ .,
+  data = rf_data,
+  importance = TRUE,
+  ntree = 300
+)
+
+print(rf_model)
+print(importance(rf_model))
+
+rf_importance_inicial <- importance(rf_model) %>%
+  as.data.frame() %>%
+  rownames_to_column("variable") %>%
+  mutate(importancia = MeanDecreaseGini) %>%
+  arrange(importancia)
+
+graf_rf_inicial <- rf_importance_inicial %>%
+  ggplot(aes(x = reorder(variable, importancia), y = importancia)) +
+  geom_col(width = 0.65, fill = "#455A64") +
+  coord_flip() +
+  labs(
+    title = "Importancia de variables - Random Forest inicial",
+    subtitle = "Modelo predictivo de victoria local",
+    x = "Variable",
+    y = "Importancia: Mean Decrease Gini"
+  ) +
+  tema_ejecutivo
+
+print(graf_rf_inicial)
+
+
+############################################################
+### 13. INFORMACIÓN DE JUGADORES: RATING, ALTURA Y PESO ###
+############################################################
+
+# Player_Attributes tiene el rating de los jugadores.
+# Player tiene datos físicos: altura y peso.
+# Unimos las dos bases por player_api_id.
+
+player_latest <- player_attr %>%
+  mutate(date = as.Date(date)) %>%
+  arrange(player_api_id, desc(date)) %>%
+  distinct(player_api_id, .keep_all = TRUE)
+
+player_bio <- player %>%
+  select(
+    player_api_id,
+    player_name,
+    height,
+    weight
+  )
+
+player_info <- player_latest %>%
+  select(
+    player_api_id,
+    overall_rating
+  ) %>%
+  left_join(player_bio, by = "player_api_id")
+
+print(head(player_info))
+
+
+############################################################
+### 14. RATINGS, ALTURA Y PESO DEL EQUIPO LOCAL ###
+############################################################
+
+match_data <- match_data %>%
+  left_join(player_info %>% rename(home_player_1 = player_api_id, home_rating_1 = overall_rating, home_height_1 = height, home_weight_1 = weight), by = "home_player_1") %>%
+  left_join(player_info %>% rename(home_player_2 = player_api_id, home_rating_2 = overall_rating, home_height_2 = height, home_weight_2 = weight), by = "home_player_2") %>%
+  left_join(player_info %>% rename(home_player_3 = player_api_id, home_rating_3 = overall_rating, home_height_3 = height, home_weight_3 = weight), by = "home_player_3") %>%
+  left_join(player_info %>% rename(home_player_4 = player_api_id, home_rating_4 = overall_rating, home_height_4 = height, home_weight_4 = weight), by = "home_player_4") %>%
+  left_join(player_info %>% rename(home_player_5 = player_api_id, home_rating_5 = overall_rating, home_height_5 = height, home_weight_5 = weight), by = "home_player_5") %>%
+  left_join(player_info %>% rename(home_player_6 = player_api_id, home_rating_6 = overall_rating, home_height_6 = height, home_weight_6 = weight), by = "home_player_6") %>%
+  left_join(player_info %>% rename(home_player_7 = player_api_id, home_rating_7 = overall_rating, home_height_7 = height, home_weight_7 = weight), by = "home_player_7") %>%
+  left_join(player_info %>% rename(home_player_8 = player_api_id, home_rating_8 = overall_rating, home_height_8 = height, home_weight_8 = weight), by = "home_player_8") %>%
+  left_join(player_info %>% rename(home_player_9 = player_api_id, home_rating_9 = overall_rating, home_height_9 = height, home_weight_9 = weight), by = "home_player_9") %>%
+  left_join(player_info %>% rename(home_player_10 = player_api_id, home_rating_10 = overall_rating, home_height_10 = height, home_weight_10 = weight), by = "home_player_10") %>%
+  left_join(player_info %>% rename(home_player_11 = player_api_id, home_rating_11 = overall_rating, home_height_11 = height, home_weight_11 = weight), by = "home_player_11")
+
+match_data <- match_data %>%
+  mutate(
+    home_team_rating = rowMeans(select(., starts_with("home_rating_")), na.rm = TRUE),
+    home_team_height = rowMeans(select(., starts_with("home_height_")), na.rm = TRUE),
+    home_team_weight = rowMeans(select(., starts_with("home_weight_")), na.rm = TRUE),
+    home_team_rating = ifelse(is.nan(home_team_rating), NA_real_, home_team_rating),
+    home_team_height = ifelse(is.nan(home_team_height), NA_real_, home_team_height),
+    home_team_weight = ifelse(is.nan(home_team_weight), NA_real_, home_team_weight)
+  )
+
+print(summary(match_data$home_team_rating))
+print(summary(match_data$home_team_height))
+print(summary(match_data$home_team_weight))
+
+
+############################################################
+### 15. RATINGS, ALTURA Y PESO DEL EQUIPO VISITANTE ###
+############################################################
+
+match_data <- match_data %>%
+  left_join(player_info %>% rename(away_player_1 = player_api_id, away_rating_1 = overall_rating, away_height_1 = height, away_weight_1 = weight), by = "away_player_1") %>%
+  left_join(player_info %>% rename(away_player_2 = player_api_id, away_rating_2 = overall_rating, away_height_2 = height, away_weight_2 = weight), by = "away_player_2") %>%
+  left_join(player_info %>% rename(away_player_3 = player_api_id, away_rating_3 = overall_rating, away_height_3 = height, away_weight_3 = weight), by = "away_player_3") %>%
+  left_join(player_info %>% rename(away_player_4 = player_api_id, away_rating_4 = overall_rating, away_height_4 = height, away_weight_4 = weight), by = "away_player_4") %>%
+  left_join(player_info %>% rename(away_player_5 = player_api_id, away_rating_5 = overall_rating, away_height_5 = height, away_weight_5 = weight), by = "away_player_5") %>%
+  left_join(player_info %>% rename(away_player_6 = player_api_id, away_rating_6 = overall_rating, away_height_6 = height, away_weight_6 = weight), by = "away_player_6") %>%
+  left_join(player_info %>% rename(away_player_7 = player_api_id, away_rating_7 = overall_rating, away_height_7 = height, away_weight_7 = weight), by = "away_player_7") %>%
+  left_join(player_info %>% rename(away_player_8 = player_api_id, away_rating_8 = overall_rating, away_height_8 = height, away_weight_8 = weight), by = "away_player_8") %>%
+  left_join(player_info %>% rename(away_player_9 = player_api_id, away_rating_9 = overall_rating, away_height_9 = height, away_weight_9 = weight), by = "away_player_9") %>%
+  left_join(player_info %>% rename(away_player_10 = player_api_id, away_rating_10 = overall_rating, away_height_10 = height, away_weight_10 = weight), by = "away_player_10") %>%
+  left_join(player_info %>% rename(away_player_11 = player_api_id, away_rating_11 = overall_rating, away_height_11 = height, away_weight_11 = weight), by = "away_player_11")
+
+match_data <- match_data %>%
+  mutate(
+    away_team_rating = rowMeans(select(., starts_with("away_rating_")), na.rm = TRUE),
+    away_team_height = rowMeans(select(., starts_with("away_height_")), na.rm = TRUE),
+    away_team_weight = rowMeans(select(., starts_with("away_weight_")), na.rm = TRUE),
+    away_team_rating = ifelse(is.nan(away_team_rating), NA_real_, away_team_rating),
+    away_team_height = ifelse(is.nan(away_team_height), NA_real_, away_team_height),
+    away_team_weight = ifelse(is.nan(away_team_weight), NA_real_, away_team_weight)
+  )
+
+print(summary(match_data$away_team_rating))
+print(summary(match_data$away_team_height))
+print(summary(match_data$away_team_weight))
+
+
+############################################################
+### 16. VENTAJAS DEL EQUIPO LOCAL FRENTE AL VISITANTE ###
+############################################################
+
+# Estas variables conectan directamente con la pregunta de investigación.
+# Valores positivos indican ventaja del equipo local frente al visitante.
+
+match_data <- match_data %>%
+  mutate(
+    rating_advantage = home_team_rating - away_team_rating,
+    height_advantage = home_team_height - away_team_height,
+    weight_advantage = home_team_weight - away_team_weight
+  )
+
+print(summary(match_data$rating_advantage))
+print(summary(match_data$height_advantage))
+print(summary(match_data$weight_advantage))
+
+ventajas_por_resultado <- match_data %>%
+  group_by(result) %>%
+  summarise(
+    avg_rating_advantage = mean(rating_advantage, na.rm = TRUE),
+    avg_height_advantage = mean(height_advantage, na.rm = TRUE),
+    avg_weight_advantage = mean(weight_advantage, na.rm = TRUE),
+    avg_pressure = mean(diff_pressure, na.rm = TRUE),
+    avg_speed = mean(diff_speed, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(ventajas_por_resultado)
