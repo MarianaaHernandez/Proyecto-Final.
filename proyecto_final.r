@@ -1434,3 +1434,10 @@ server <- function(input, output) {
 }
 
 shinyApp(ui, server)
+
+install.packages("rsconnect")
+library(rsconnect)
+
+rsconnect::setAccountInfo(name='marianahernandezyjuandaza',
+			  token='62D9CA6516DC393DEBEC66C1E77B6D4D',
+			  secret='<SECRET>')
