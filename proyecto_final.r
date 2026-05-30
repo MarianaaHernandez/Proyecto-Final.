@@ -137,6 +137,7 @@ match_data <- match_data %>%
   left_join(country_clean, by = "country_id") %>%
   left_join(league_clean, by = "league_id")
 
+
 print(head(match_data %>% select(country_name, league_name)))
 
 
@@ -1441,3 +1442,5 @@ library(rsconnect)
 rsconnect::setAccountInfo(name='marianahernandezyjuandaza',
 			  token='62D9CA6516DC393DEBEC66C1E77B6D4D',
 			  secret='<SECRET>')
+
+rsconnect::deployApp()
